@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ONLINE MAFIA</title>
-
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
 <style>
@@ -15,8 +14,6 @@
 body{
     font-family:'Inter',sans-serif;
     background:linear-gradient(135deg,#0f0f0f,#1a1a2e,#16213e);
-    background-size:200% 200%;
-    animation:bgMove 12s ease infinite;
     display:flex;
     justify-content:center;
     align-items:center;
@@ -24,30 +21,23 @@ body{
     color:white;
 }
 
-@keyframes bgMove{
-    0%{background-position:0% 50%;}
-    50%{background-position:100% 50%;}
-    100%{background-position:0% 50%;}
-}
-
 .card{
     width:95%;
-    max-width:430px;
-    padding:30px;
+    max-width:500px;
+    padding:25px;
     border-radius:20px;
     background:rgba(255,255,255,0.05);
-    backdrop-filter:blur(20px);
+    backdrop-filter:blur(15px);
     border:1px solid rgba(255,255,255,0.1);
-    box-shadow:0 20px 50px rgba(0,0,0,0.7);
 }
 
-h1{font-weight:800;margin-bottom:20px;}
+h1{margin-bottom:20px;}
 
 input{
     width:100%;
-    padding:14px;
-    margin:10px 0;
-    border-radius:12px;
+    padding:12px;
+    margin:8px 0;
+    border-radius:10px;
     border:none;
     background:rgba(255,255,255,0.1);
     color:white;
@@ -55,9 +45,9 @@ input{
 
 button{
     width:100%;
-    padding:14px;
-    margin-top:12px;
-    border-radius:12px;
+    padding:12px;
+    margin-top:10px;
+    border-radius:10px;
     border:none;
     font-weight:600;
     background:linear-gradient(90deg,#00c853,#64dd17);
@@ -68,10 +58,16 @@ button{
 .hidden{display:none;}
 
 .player{
-    padding:10px;
-    border-radius:10px;
-    background:rgba(255,255,255,0.08);
+    padding:8px;
     margin:6px 0;
+    border-radius:8px;
+    background:rgba(255,255,255,0.08);
+}
+
+.hostTag{
+    color:yellow;
+    font-weight:800;
+    margin-left:6px;
 }
 
 .dead{
@@ -80,9 +76,9 @@ button{
 }
 
 .phase{
-    font-size:20px;
-    margin-bottom:10px;
     text-align:center;
+    font-size:18px;
+    margin-bottom:10px;
 }
 </style>
 </head>
@@ -106,12 +102,6 @@ button{
 <div id="roomInfo"></div>
 </div>
 
-<div class="card hidden" id="roleScreen">
-<h2>Your Role</h2>
-<h1 id="roleText"></h1>
-<button onclick="enterGame()">Continue</button>
-</div>
-
 <div class="card hidden" id="game">
 <div class="phase" id="phase">Lobby</div>
 <div id="playersList"></div>
@@ -131,7 +121,6 @@ let connections = {};
 let isHost = false;
 let myId = null;
 let myName = "";
-let myRole = "";
 let players = {};
 let votes = {};
 let phase = "lobby";
@@ -154,9 +143,17 @@ function createRoom(){
 
     peer.on("open", id=>{
         myId = id;
-        players[id] = {name: myName, alive:true};
+
+        // AUTO JOIN HOST
+        players[id] = {name: myName, alive:true, host:true};
+
+        document.getElementById("menu").classList.add("hidden");
+        document.getElementById("game").classList.remove("hidden");
+
         document.getElementById("roomInfo").innerHTML = "Room Code: <b>"+id+"</b>";
         document.getElementById("startBtn").classList.remove("hidden");
+
+        updatePlayers();
     });
 
     peer.on("connection", conn=>{
@@ -164,13 +161,18 @@ function createRoom(){
 
         conn.on("data", data=>{
             if(data.type === "join"){
-                players[data.id] = {name:data.name, alive:true};
+                players[data.id] = {name:data.name, alive:true, host:false};
                 updatePlayers();
             }
             if(data.type === "vote"){
                 votes[data.id] = data.target;
                 checkVotes();
             }
+        });
+
+        // Send full player list to new player
+        conn.on("open", ()=>{
+            conn.send({type:"players", players});
         });
     });
 }
@@ -195,71 +197,32 @@ function joinRoom(){
         });
 
         conn.on("data", data=>{
-            if(data.type === "role"){
-                myRole = data.role;
-                showRole();
-            }
             if(data.type === "players"){
                 players = data.players;
+                document.getElementById("menu").classList.add("hidden");
+                document.getElementById("game").classList.remove("hidden");
+                updatePlayers();
+            }
+            if(data.type === "vote"){
+                votes[data.id] = data.target;
                 updatePlayers();
             }
             if(data.type === "phase"){
                 phase = data.phase;
                 updatePhase();
             }
-            if(data.type === "kill"){
-                players[data.id].alive = false;
-                updatePlayers();
-            }
         });
     });
-}
-
-function startGame(){
-    const mafiaCount = parseInt(document.getElementById("mafia").value);
-    const ids = Object.keys(players);
-
-    let roles = [];
-    for(let i=0;i<mafiaCount;i++) roles.push("MAFIA");
-    for(let i=0;i<ids.length-mafiaCount;i++) roles.push("CITIZEN");
-
-    roles.sort(()=>Math.random()-0.5);
-
-    ids.forEach((id,index)=>{
-        players[id].role = roles[index];
-
-        if(id === myId){
-            myRole = roles[index];
-            showRole();
-        } else {
-            connections[id].send({type:"role", role:roles[index]});
-        }
-    });
-
-    broadcast({type:"players", players});
-}
-
-function showRole(){
-    document.getElementById("menu").classList.add("hidden");
-    document.getElementById("roleScreen").classList.remove("hidden");
-    document.getElementById("roleText").innerText = myRole;
-}
-
-function enterGame(){
-    document.getElementById("roleScreen").classList.add("hidden");
-    document.getElementById("game").classList.remove("hidden");
-
-    if(isHost){
-        document.getElementById("nextBtn").classList.remove("hidden");
-    }
-
-    updatePlayers();
 }
 
 function updatePlayers(){
     let html="";
     for(let id in players){
-        html += `<div class="player ${players[id].alive?'':'dead'}">${players[id].name}</div>`;
+        let p = players[id];
+        html += `<div class="player ${p.alive?'':'dead'}">
+            ${p.name}
+            ${p.host?'<span class="hostTag">[HOST]</span>':''}
+        </div>`;
     }
     document.getElementById("playersList").innerHTML = html;
 
@@ -299,36 +262,25 @@ function checkVotes(){
         }
         let max = Object.keys(count).reduce((a,b)=>count[a]>count[b]?a:b);
         players[max].alive = false;
-        broadcast({type:"kill", id:max});
         votes = {};
         updatePlayers();
-        checkWin();
     }
-}
-
-function checkWin(){
-    let mafia=0, citizens=0;
-    for(let id in players){
-        if(players[id].alive){
-            if(players[id].role==="MAFIA") mafia++;
-            else citizens++;
-        }
-    }
-
-    if(mafia===0) alert("CITIZENS WIN!");
-    if(mafia>=citizens) alert("MAFIA WIN!");
 }
 
 function togglePhase(){
     phase = phase === "night" ? "day" : "night";
-    broadcast({type:"phase", phase});
     updatePhase();
+    broadcast({type:"phase", phase});
 }
 
 function updatePhase(){
     document.getElementById("phase").innerText = phase.toUpperCase();
     if(phase==="day") document.getElementById("voteArea").classList.remove("hidden");
     else document.getElementById("voteArea").classList.add("hidden");
+}
+
+function startGame(){
+    alert("Game start logic can be expanded here");
 }
 
 function broadcast(obj){
