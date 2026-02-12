@@ -1,294 +1,455 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ONLINE MAFIA</title>
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-
-*{box-sizing:border-box;margin:0;padding:0;}
-
-body{
-    font-family:'Inter',sans-serif;
-    background:linear-gradient(135deg,#0f0f0f,#1a1a2e,#16213e);
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    min-height:100vh;
-    color:white;
-}
-
-.card{
-    width:95%;
-    max-width:500px;
-    padding:25px;
-    border-radius:20px;
-    background:rgba(255,255,255,0.05);
-    backdrop-filter:blur(15px);
-    border:1px solid rgba(255,255,255,0.1);
-}
-
-h1{margin-bottom:20px;}
-
-input{
-    width:100%;
-    padding:12px;
-    margin:8px 0;
-    border-radius:10px;
-    border:none;
-    background:rgba(255,255,255,0.1);
-    color:white;
-}
-
-button{
-    width:100%;
-    padding:12px;
-    margin-top:10px;
-    border-radius:10px;
-    border:none;
-    font-weight:600;
-    background:linear-gradient(90deg,#00c853,#64dd17);
-    color:white;
-    cursor:pointer;
-}
-
-.hidden{display:none;}
-
-.player{
-    padding:8px;
-    margin:6px 0;
-    border-radius:8px;
-    background:rgba(255,255,255,0.08);
-}
-
-.hostTag{
-    color:yellow;
-    font-weight:800;
-    margin-left:6px;
-}
-
-.dead{
-    background:rgba(255,0,0,0.4);
-    text-decoration:line-through;
-}
-
-.phase{
-    text-align:center;
-    font-size:18px;
-    margin-bottom:10px;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Mafia (No Server)</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { font-family: 'Courier New', monospace; background: #111; color: #ddd; text-align: center; margin: 0; padding: 20px; }
+        h1 { color: #e74c3c; text-shadow: 0 0 5px #c0392b; }
+        .hidden { display: none !important; }
+        
+        /* Containers */
+        .container { max-width: 600px; margin: auto; padding: 20px; border: 1px solid #444; background: #222; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
+        
+        /* Inputs & Buttons */
+        input { padding: 10px; font-size: 16px; background: #333; color: white; border: 1px solid #555; width: 70%; margin-bottom: 10px; text-align: center; }
+        button { padding: 12px 20px; font-size: 16px; cursor: pointer; background: #444; color: white; border: 1px solid #666; width: 100%; margin-top: 5px; transition: 0.2s; }
+        button:hover { background: #555; border-color: #888; }
+        button:disabled { background: #222; color: #555; cursor: not-allowed; }
+        
+        /* Game UI */
+        .player-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 20px; }
+        .player-card { 
+            position: relative; width: 100px; padding: 10px; border: 2px solid #555; background: #333; 
+            cursor: pointer; user-select: none; transition: 0.2s;
+        }
+        .player-card:hover { background: #444; }
+        .player-card.selected { border-color: #f1c40f; background: #443e10; }
+        .player-card.dead { background: #500; opacity: 0.6; border-color: #800; pointer-events: none; }
+        .player-card .name { font-weight: bold; font-size: 14px; }
+        .player-card .status { font-size: 12px; margin-top: 5px; color: #aaa; }
+        
+        #game-status { font-size: 1.4em; color: #f39c12; margin: 15px 0; min-height: 1.5em; }
+        #my-role { font-size: 1.8em; font-weight: bold; color: #2ecc71; margin-bottom: 10px; border-bottom: 1px solid #444; padding-bottom: 10px;}
+        
+        #room-id-display { font-size: 1.2em; color: #f1c40f; margin: 10px 0; user-select: all; cursor: pointer; border: 1px dashed #555; padding: 5px; }
+        .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); border: 1px solid #f39c12; padding: 10px 20px; z-index: 100; display: none; }
+    </style>
 </head>
-
 <body>
 
-<div class="card" id="menu">
-<h1>ONLINE MAFIA</h1>
+    <div id="toast" class="toast">Notification</div>
 
-<input id="nickname" placeholder="Your Name">
-<input id="players" type="number" min="4" max="20" placeholder="Players (4-20)">
-<input id="mafia" type="number" placeholder="Mafia Count">
+    <h1>MAFIA P2P</h1>
 
-<button onclick="createRoom()">CREATE ROOM</button>
+    <!-- 1. LOGIN / MENU -->
+    <div id="menu-screen" class="container">
+        <h3>Enter Name</h3>
+        <input type="text" id="username" placeholder="Nickname">
+        <br><br>
+        <div style="border-top: 1px solid #444; padding-top: 20px;">
+            <button onclick="hostGame()" style="background: #2c3e50;">HOST NEW GAME</button>
+            <p>- OR -</p>
+            <input type="text" id="join-id" placeholder="Enter Room ID">
+            <button onclick="joinGame()" style="background: #27ae60;">JOIN GAME</button>
+        </div>
+        <p id="loading-text" class="hidden" style="color:yellow;">Connecting...</p>
+    </div>
 
-<hr style="margin:15px 0;opacity:0.3">
+    <!-- 2. LOBBY (HOST ONLY) -->
+    <div id="lobby-screen" class="container hidden">
+        <h2>LOBBY</h2>
+        <p>Share this ID with friends:</p>
+        <div id="room-id-display" onclick="copyId()">Generating ID...</div>
+        <p>Players connected: <span id="player-count">1</span></p>
+        <ul id="lobby-list" style="text-align: left;"></ul>
+        <button id="start-btn" onclick="startGame()" disabled>START GAME (Need 3+)</button>
+    </div>
 
-<input id="joinCode" placeholder="Room Code">
-<button onclick="joinRoom()">JOIN ROOM</button>
+    <!-- 3. GAME AREA -->
+    <div id="game-screen" class="container hidden">
+        <div id="my-role">Role: ???</div>
+        <div id="game-status">Waiting...</div>
+        
+        <div id="player-grid" class="player-grid"></div>
 
-<div id="roomInfo"></div>
-</div>
+        <div style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">
+            <button onclick="submitAction()">SUBMIT ACTION / VOTE</button>
+            <!-- Only Host sees this -->
+            <button id="host-next-btn" class="hidden" onclick="hostNextPhase()" style="background: #c0392b; margin-top: 10px;">NEXT PHASE (HOST)</button>
+        </div>
+        
+        <div id="log" style="margin-top: 20px; font-size: 12px; color: #777; height: 100px; overflow-y: scroll; border: 1px solid #333; text-align: left; padding: 5px;"></div>
+    </div>
 
-<div class="card hidden" id="game">
-<div class="phase" id="phase">Lobby</div>
-<div id="playersList"></div>
+    <script>
+        // --- CONFIGURATION ---
+        const ROLES_POOL = ['Mafia', 'Doctor', 'Detective', 'Villager', 'Villager', 'Villager', 'Mafia', 'Villager'];
 
-<div id="voteArea" class="hidden">
-<select id="voteSelect"></select>
-<button onclick="vote()">Vote</button>
-</div>
+        // --- GLOBAL STATE ---
+        let peer = null;
+        let myConn = null; // If client, this is connection to host
+        let connections = []; // If host, list of connections
+        
+        let myId = null;
+        let myName = "";
+        let isHost = false;
+        
+        // Game State (Synced)
+        let players = []; // { id, name, isAlive, role (hidden on client), votes }
+        let phase = 'lobby'; 
+        let gameLog = [];
+        
+        // Host Local State
+        let nightActions = {}; // { mafia: targetId, doctor: targetId, detective: targetId }
+        let votes = {};
 
-<button id="startBtn" class="hidden" onclick="startGame()">Start Game</button>
-<button id="nextBtn" class="hidden" onclick="togglePhase()">Next Phase</button>
-</div>
+        // --- PEERJS SETUP ---
+        
+        function initPeer(callback) {
+            document.getElementById('loading-text').classList.remove('hidden');
+            peer = new Peer(); // Auto-generate ID
+            
+            peer.on('open', (id) => {
+                myId = id;
+                document.getElementById('loading-text').classList.add('hidden');
+                callback(id);
+            });
 
-<script>
-let peer;
-let connections = {};
-let isHost = false;
-let myId = null;
-let myName = "";
-let players = {};
-let votes = {};
-let phase = "lobby";
-
-function generateCode(){
-    return Math.random().toString(36).substring(2,7).toUpperCase();
-}
-
-function createRoom(){
-    isHost = true;
-    myName = document.getElementById("nickname").value || "Host";
-    const code = generateCode();
-
-    peer = new Peer(code,{
-        secure:true,
-        host:'0.peerjs.com',
-        port:443,
-        path:'/'
-    });
-
-    peer.on("open", id=>{
-        myId = id;
-
-        // AUTO JOIN HOST
-        players[id] = {name: myName, alive:true, host:true};
-
-        document.getElementById("menu").classList.add("hidden");
-        document.getElementById("game").classList.remove("hidden");
-
-        document.getElementById("roomInfo").innerHTML = "Room Code: <b>"+id+"</b>";
-        document.getElementById("startBtn").classList.remove("hidden");
-
-        updatePlayers();
-    });
-
-    peer.on("connection", conn=>{
-        connections[conn.peer] = conn;
-
-        conn.on("data", data=>{
-            if(data.type === "join"){
-                players[data.id] = {name:data.name, alive:true, host:false};
-                updatePlayers();
-            }
-            if(data.type === "vote"){
-                votes[data.id] = data.target;
-                checkVotes();
-            }
-        });
-
-        // Send full player list to new player
-        conn.on("open", ()=>{
-            conn.send({type:"players", players});
-        });
-    });
-}
-
-function joinRoom(){
-    myName = document.getElementById("nickname").value || "Player";
-    const code = document.getElementById("joinCode").value;
-
-    peer = new Peer({
-        secure:true,
-        host:'0.peerjs.com',
-        port:443,
-        path:'/'
-    });
-
-    peer.on("open", id=>{
-        myId = id;
-        const conn = peer.connect(code);
-
-        conn.on("open", ()=>{
-            conn.send({type:"join", id:myId, name:myName});
-        });
-
-        conn.on("data", data=>{
-            if(data.type === "players"){
-                players = data.players;
-                document.getElementById("menu").classList.add("hidden");
-                document.getElementById("game").classList.remove("hidden");
-                updatePlayers();
-            }
-            if(data.type === "vote"){
-                votes[data.id] = data.target;
-                updatePlayers();
-            }
-            if(data.type === "phase"){
-                phase = data.phase;
-                updatePhase();
-            }
-        });
-    });
-}
-
-function updatePlayers(){
-    let html="";
-    for(let id in players){
-        let p = players[id];
-        html += `<div class="player ${p.alive?'':'dead'}">
-            ${p.name}
-            ${p.host?'<span class="hostTag">[HOST]</span>':''}
-        </div>`;
-    }
-    document.getElementById("playersList").innerHTML = html;
-
-    if(isHost) broadcast({type:"players", players});
-    updateVoteOptions();
-}
-
-function updateVoteOptions(){
-    let select = document.getElementById("voteSelect");
-    select.innerHTML = "";
-    for(let id in players){
-        if(players[id].alive && id !== myId){
-            select.innerHTML += `<option value="${id}">${players[id].name}</option>`;
+            peer.on('error', (err) => {
+                alert("Connection Error: " + err.type);
+                location.reload();
+            });
         }
-    }
-}
 
-function vote(){
-    const target = document.getElementById("voteSelect").value;
+        // --- HOST LOGIC ---
 
-    if(isHost){
-        votes[myId] = target;
-        checkVotes();
-    } else {
-        peer.connections[Object.keys(peer.connections)[0]][0]
-            .send({type:"vote", id:myId, target});
-    }
-}
+        function hostGame() {
+            myName = document.getElementById('username').value || "Host";
+            isHost = true;
+            
+            initPeer((id) => {
+                // UI Setup
+                document.getElementById('menu-screen').classList.add('hidden');
+                document.getElementById('lobby-screen').classList.remove('hidden');
+                document.getElementById('room-id-display').innerText = id;
+                document.getElementById('host-next-btn').classList.remove('hidden');
 
-function checkVotes(){
-    const aliveCount = Object.values(players).filter(p=>p.alive).length;
+                // Add self to players
+                players.push({ id: myId, name: myName, isAlive: true, role: null });
+                updateLobbyUI();
 
-    if(Object.keys(votes).length === aliveCount){
-        let count = {};
-        for(let v in votes){
-            count[votes[v]] = (count[votes[v]]||0)+1;
+                // Listen for connections
+                peer.on('connection', (conn) => {
+                    connections.push(conn);
+                    
+                    conn.on('data', (data) => handleDataHost(data, conn.peer));
+                    
+                    conn.on('close', () => {
+                        players = players.filter(p => p.id !== conn.peer);
+                        connections = connections.filter(c => c.peer !== conn.peer);
+                        broadcastState();
+                        updateLobbyUI();
+                    });
+                });
+            });
         }
-        let max = Object.keys(count).reduce((a,b)=>count[a]>count[b]?a:b);
-        players[max].alive = false;
-        votes = {};
-        updatePlayers();
-    }
-}
 
-function togglePhase(){
-    phase = phase === "night" ? "day" : "night";
-    updatePhase();
-    broadcast({type:"phase", phase});
-}
+        function handleDataHost(data, senderId) {
+            if (data.type === 'join') {
+                const newPlayer = { id: senderId, name: data.name, isAlive: true, role: null };
+                players.push(newPlayer);
+                updateLobbyUI();
+                broadcastState(); // Sync everyone
+            }
+            else if (data.type === 'action') {
+                processPlayerAction(senderId, data.targetId);
+            }
+        }
 
-function updatePhase(){
-    document.getElementById("phase").innerText = phase.toUpperCase();
-    if(phase==="day") document.getElementById("voteArea").classList.remove("hidden");
-    else document.getElementById("voteArea").classList.add("hidden");
-}
+        function processPlayerAction(actorId, targetId) {
+            const actor = players.find(p => p.id === actorId);
+            if (!actor || !actor.isAlive) return;
 
-function startGame(){
-    alert("Game start logic can be expanded here");
-}
+            if (phase === 'night') {
+                if (actor.role === 'Mafia') nightActions.mafia = targetId;
+                if (actor.role === 'Doctor') nightActions.doctor = targetId;
+                if (actor.role === 'Detective') {
+                    const target = players.find(p => p.id === targetId);
+                    // Send private result to detective
+                    const result = (target.role === 'Mafia') ? 'Mafia' : 'Innocent';
+                    sendPrivate(actorId, { type: 'alert', msg: `Investigation: ${target.name} is ${result}` });
+                }
+            } else if (phase === 'day') {
+                votes[actorId] = targetId;
+                broadcastState(); // Show who voted for whom (optional, or just counts)
+            }
+        }
 
-function broadcast(obj){
-    for(let id in connections){
-        connections[id].send(obj);
-    }
-}
-</script>
+        function startGame() {
+            if (players.length < 3) return alert("Need at least 3 players!");
+            
+            // Assign Roles
+            let deck = ROLES_POOL.slice(0, players.length);
+            deck.sort(() => Math.random() - 0.5);
+            
+            players.forEach((p, i) => {
+                p.role = deck[i];
+            });
 
+            gameStarted = true;
+            document.getElementById('lobby-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            
+            startNight();
+        }
+
+        function startNight() {
+            phase = 'night';
+            nightActions = {};
+            votes = {};
+            broadcastState("Night falls. Mafia select a target. Doctor select a save.");
+        }
+
+        function startDay(msg) {
+            phase = 'day';
+            votes = {};
+            broadcastState(`Day rises. ${msg} Discuss and Vote.`);
+        }
+
+        function hostNextPhase() {
+            if (phase === 'night') {
+                // Process Night
+                let victimId = nightActions.mafia;
+                let savedId = nightActions.doctor;
+                let msg = "";
+
+                if (victimId) {
+                    if (victimId === savedId) {
+                        msg = "Someone was attacked but survived!";
+                    } else {
+                        let victim = players.find(p => p.id === victimId);
+                        victim.isAlive = false;
+                        msg = `${victim.name} was killed!`;
+                    }
+                } else {
+                    msg = "It was a quiet night.";
+                }
+
+                if (checkWin()) return;
+                startDay(msg);
+
+            } else if (phase === 'day') {
+                // Process Vote
+                let counts = {};
+                for (let v in votes) {
+                    let target = votes[v];
+                    counts[target] = (counts[target] || 0) + 1;
+                }
+
+                let max = 0;
+                let eliminatedId = null;
+                for (let id in counts) {
+                    if (counts[id] > max) {
+                        max = counts[id];
+                        eliminatedId = id;
+                    }
+                }
+                
+                // Tie breaker: strict majority or random? Simple: > 1 vote to die
+                let msg = "No one was eliminated.";
+                if (eliminatedId && max > 1) {
+                    let victim = players.find(p => p.id === eliminatedId);
+                    victim.isAlive = false;
+                    msg = `${victim.name} was voted out by the village!`;
+                }
+
+                if (checkWin()) return;
+                
+                broadcastState(msg);
+                setTimeout(() => startNight(), 3000); // Wait 3s so they see result, then night
+            }
+        }
+
+        function checkWin() {
+            let mafias = players.filter(p => p.isAlive && p.role === 'Mafia').length;
+            let villagers = players.filter(p => p.isAlive && p.role !== 'Mafia').length;
+
+            if (mafias === 0) {
+                broadcastState("GAME OVER: Villagers Win!");
+                phase = 'gameover';
+                return true;
+            } 
+            if (mafias >= villagers) {
+                broadcastState("GAME OVER: Mafia Wins!");
+                phase = 'gameover';
+                return true;
+            }
+            return false;
+        }
+
+        function broadcastState(notification = null) {
+            // We strip roles from the public list so clients don't cheat by looking at packets
+            const publicPlayers = players.map(p => ({
+                id: p.id,
+                name: p.name,
+                isAlive: p.isAlive,
+                // Don't send role!
+            }));
+
+            const state = {
+                type: 'update',
+                players: publicPlayers,
+                phase: phase,
+                notification: notification
+            };
+
+            // Send to Host UI (Local)
+            handleDataClient(state);
+            // Inject my own role locally
+            const me = players.find(p => p.id === myId);
+            if(me) document.getElementById('my-role').innerText = "Role: " + me.role;
+
+            // Send to Clients (Inject their specific role)
+            connections.forEach(conn => {
+                const p = players.find(pl => pl.id === conn.peer);
+                const clientState = JSON.parse(JSON.stringify(state)); // Deep copy
+                clientState.myRole = p ? p.role : 'Spectator';
+                conn.send(clientState);
+            });
+        }
+
+        function sendPrivate(targetId, data) {
+            if (targetId === myId) {
+                alert(data.msg); // Host alert
+            } else {
+                const conn = connections.find(c => c.peer === targetId);
+                if (conn) conn.send(data);
+            }
+        }
+
+        function updateLobbyUI() {
+            const list = document.getElementById('lobby-list');
+            list.innerHTML = players.map(p => `<li>${p.name}</li>`).join('');
+            document.getElementById('player-count').innerText = players.length;
+            document.getElementById('start-btn').disabled = players.length < 3;
+        }
+
+
+        // --- CLIENT LOGIC ---
+
+        function joinGame() {
+            myName = document.getElementById('username').value || "Player";
+            const hostId = document.getElementById('join-id').value;
+            if (!hostId) return alert("Enter Host ID");
+
+            initPeer((id) => {
+                document.getElementById('menu-screen').classList.add('hidden');
+                document.getElementById('loading-text').classList.remove('hidden');
+                document.getElementById('loading-text').innerText = "Connecting to Host...";
+
+                myConn = peer.connect(hostId);
+
+                myConn.on('open', () => {
+                    document.getElementById('loading-text').innerText = "Waiting for game start...";
+                    // Send Join Request
+                    myConn.send({ type: 'join', name: myName });
+                });
+
+                myConn.on('data', (data) => handleDataClient(data));
+                
+                myConn.on('close', () => {
+                    alert("Host disconnected");
+                    location.reload();
+                });
+            });
+        }
+
+        function handleDataClient(data) {
+            if (data.type === 'update') {
+                // Switch screens if needed
+                if (document.getElementById('game-screen').classList.contains('hidden')) {
+                    document.getElementById('menu-screen').classList.add('hidden');
+                    document.getElementById('game-screen').classList.remove('hidden');
+                    document.getElementById('loading-text').classList.add('hidden');
+                }
+
+                // Update Role if provided
+                if (data.myRole) {
+                    document.getElementById('my-role').innerText = "Role: " + data.myRole;
+                }
+
+                // Update Status
+                document.getElementById('game-status').innerText = phase.toUpperCase();
+                
+                // Notification
+                if (data.notification) {
+                    showToast(data.notification);
+                    const log = document.getElementById('log');
+                    log.innerHTML += `<div>> ${data.notification}</div>`;
+                    log.scrollTop = log.scrollHeight;
+                }
+
+                // Render Grid
+                const grid = document.getElementById('player-grid');
+                grid.innerHTML = '';
+                
+                data.players.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = `player-card ${p.isAlive ? '' : 'dead'}`;
+                    div.innerHTML = `<div class="name">${p.name}</div><div class="status">${p.isAlive ? 'Alive' : 'DEAD'}</div>`;
+                    div.onclick = () => selectPlayer(p.id, div);
+                    grid.appendChild(div);
+                });
+            }
+            if (data.type === 'alert') {
+                alert(data.msg);
+            }
+        }
+
+        // --- SHARED UI ACTIONS ---
+
+        let selectedTarget = null;
+
+        function selectPlayer(id, el) {
+            // Cannot select dead players or self usually, but keeping logic simple
+            selectedTarget = id;
+            document.querySelectorAll('.player-card').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+
+        function submitAction() {
+            if (!selectedTarget) return showToast("Select a player first!");
+            
+            if (isHost) {
+                // Host processes directly
+                processPlayerAction(myId, selectedTarget);
+                showToast("Action Submitted");
+            } else {
+                // Client sends to host
+                myConn.send({ type: 'action', targetId: selectedTarget });
+                showToast("Action Sent to Host");
+            }
+            
+            // Visual feedback reset
+            selectedTarget = null;
+            document.querySelectorAll('.player-card').forEach(e => e.classList.remove('selected'));
+        }
+
+        function copyId() {
+            const text = document.getElementById('room-id-display').innerText;
+            navigator.clipboard.writeText(text).then(() => showToast("ID Copied!"));
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 3000);
+        }
+
+    </script>
 </body>
 </html>
