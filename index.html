@@ -39,15 +39,11 @@ body{
     backdrop-filter:blur(20px);
     border:1px solid rgba(255,255,255,0.1);
     box-shadow:0 20px 50px rgba(0,0,0,0.7);
-    transition:0.3s ease;
 }
 
-h1{
-    font-weight:800;
-    margin-bottom:20px;
-}
+h1{font-weight:800;margin-bottom:20px;}
 
-input,select{
+input{
     width:100%;
     padding:14px;
     margin:10px 0;
@@ -55,11 +51,6 @@ input,select{
     border:none;
     background:rgba(255,255,255,0.1);
     color:white;
-    outline:none;
-}
-
-input:focus,select:focus{
-    background:rgba(255,255,255,0.15);
 }
 
 button{
@@ -69,16 +60,9 @@ button{
     border-radius:12px;
     border:none;
     font-weight:600;
-    font-size:15px;
-    cursor:pointer;
     background:linear-gradient(90deg,#00c853,#64dd17);
     color:white;
-    transition:0.2s;
-}
-
-button:hover{
-    transform:translateY(-2px);
-    box-shadow:0 10px 20px rgba(0,200,83,0.3);
+    cursor:pointer;
 }
 
 .hidden{display:none;}
@@ -90,45 +74,27 @@ button:hover{
     margin:6px 0;
 }
 
-.player.dead{
-    background:rgba(255,0,0,0.3);
+.dead{
+    background:rgba(255,0,0,0.4);
     text-decoration:line-through;
 }
 
 .phase{
-    font-size:22px;
-    font-weight:600;
+    font-size:20px;
+    margin-bottom:10px;
     text-align:center;
-    margin-bottom:15px;
-}
-
-.roleReveal{
-    font-size:30px;
-    text-align:center;
-    margin:20px 0;
-    font-weight:800;
-}
-
-.fade{
-    animation:fadeIn 0.4s ease;
-}
-
-@keyframes fadeIn{
-    from{opacity:0;transform:translateY(10px);}
-    to{opacity:1;transform:translateY(0);}
 }
 </style>
 </head>
 
 <body>
 
-<div class="card fade" id="menu">
+<div class="card" id="menu">
 <h1>ONLINE MAFIA</h1>
 
-<input id="roomName" placeholder="Room Name">
 <input id="nickname" placeholder="Your Name">
-<input type="number" id="players" placeholder="Players (4-20)" min="4" max="20">
-<input type="number" id="mafia" placeholder="Mafia Count">
+<input id="players" type="number" min="4" max="20" placeholder="Players (4-20)">
+<input id="mafia" type="number" placeholder="Mafia Count">
 
 <button onclick="createRoom()">CREATE ROOM</button>
 
@@ -137,212 +103,238 @@ button:hover{
 <input id="joinCode" placeholder="Room Code">
 <button onclick="joinRoom()">JOIN ROOM</button>
 
-<div id="roomInfo" style="margin-top:10px;"></div>
+<div id="roomInfo"></div>
 </div>
 
-
-<div class="card hidden fade" id="roleScreen">
+<div class="card hidden" id="roleScreen">
 <h2>Your Role</h2>
-<div class="roleReveal" id="role"></div>
+<h1 id="roleText"></h1>
 <button onclick="enterGame()">Continue</button>
 </div>
 
-
-<div class="card hidden fade" id="game">
+<div class="card hidden" id="game">
 <div class="phase" id="phase">Lobby</div>
 <div id="playersList"></div>
 
-<div id="voteSection" class="hidden">
+<div id="voteArea" class="hidden">
 <select id="voteSelect"></select>
-<button onclick="sendVote()">Vote</button>
+<button onclick="vote()">Vote</button>
 </div>
 
 <button id="startBtn" class="hidden" onclick="startGame()">Start Game</button>
-<button id="nextBtn" class="hidden" onclick="nextPhase()">Next Phase</button>
-<button id="restartBtn" class="hidden" onclick="restartGame()">Restart</button>
+<button id="nextBtn" class="hidden" onclick="togglePhase()">Next Phase</button>
 </div>
 
-
 <script>
-let peer, conn;
-let clients=[];
-let isHost=false;
-let myRole=null;
-let myName="";
-let playersData={};
-let votes={};
-let phase="lobby";
+let peer;
+let connections = {};
+let isHost = false;
+let myId = null;
+let myName = "";
+let myRole = "";
+let players = {};
+let votes = {};
+let phase = "lobby";
 
 function generateCode(){
     return Math.random().toString(36).substring(2,7).toUpperCase();
 }
 
 function createRoom(){
-    isHost=true;
-    myName=document.getElementById("nickname").value||"Host";
-    const code=generateCode();
-    peer=new Peer(code);
+    isHost = true;
+    myName = document.getElementById("nickname").value || "Host";
+    const code = generateCode();
 
-    peer.on("open",id=>{
-        document.getElementById("roomInfo").innerHTML="Room Code: <b>"+id+"</b>";
-        playersData[id]={name:myName,alive:true};
+    peer = new Peer(code,{
+        secure:true,
+        host:'0.peerjs.com',
+        port:443,
+        path:'/'
     });
 
-    peer.on("connection",c=>{
-        clients.push(c);
-        c.on("data",handleHostData);
+    peer.on("open", id=>{
+        myId = id;
+        players[id] = {name: myName, alive:true};
+        document.getElementById("roomInfo").innerHTML = "Room Code: <b>"+id+"</b>";
+        document.getElementById("startBtn").classList.remove("hidden");
+    });
+
+    peer.on("connection", conn=>{
+        connections[conn.peer] = conn;
+
+        conn.on("data", data=>{
+            if(data.type === "join"){
+                players[data.id] = {name:data.name, alive:true};
+                updatePlayers();
+            }
+            if(data.type === "vote"){
+                votes[data.id] = data.target;
+                checkVotes();
+            }
+        });
     });
 }
 
 function joinRoom(){
-    myName=document.getElementById("nickname").value||"Player";
-    const code=document.getElementById("joinCode").value;
-    peer=new Peer();
+    myName = document.getElementById("nickname").value || "Player";
+    const code = document.getElementById("joinCode").value;
 
-    peer.on("open",id=>{
-        conn=peer.connect(code);
-        conn.on("open",()=>{
-            conn.send({type:"join",id:id,name:myName});
+    peer = new Peer({
+        secure:true,
+        host:'0.peerjs.com',
+        port:443,
+        path:'/'
+    });
+
+    peer.on("open", id=>{
+        myId = id;
+        const conn = peer.connect(code);
+
+        conn.on("open", ()=>{
+            conn.send({type:"join", id:myId, name:myName});
         });
-        conn.on("data",handleClientData);
+
+        conn.on("data", data=>{
+            if(data.type === "role"){
+                myRole = data.role;
+                showRole();
+            }
+            if(data.type === "players"){
+                players = data.players;
+                updatePlayers();
+            }
+            if(data.type === "phase"){
+                phase = data.phase;
+                updatePhase();
+            }
+            if(data.type === "kill"){
+                players[data.id].alive = false;
+                updatePlayers();
+            }
+        });
     });
 }
 
-function handleHostData(data){
-    if(data.type==="join"){
-        playersData[data.id]={name:data.name,alive:true};
-        updatePlayers();
-    }
-    if(data.type==="vote"){
-        votes[data.id]=data.target;
-        checkVotes();
-    }
-}
-
-function handleClientData(data){
-    if(data.type==="role"){myRole=data.role;showRole();}
-    if(data.type==="players"){playersData=data.players;updatePlayers();}
-    if(data.type==="phase"){phase=data.phase;updatePhase();}
-    if(data.type==="kill"){playersData[data.id].alive=false;updatePlayers();}
-    if(data.type==="restart"){location.reload();}
-}
-
-function broadcast(obj){
-    clients.forEach(c=>c.send(obj));
-}
-
 function startGame(){
-    let ids=Object.keys(playersData);
-    let mafiaCount=parseInt(document.getElementById("mafia").value);
-    let roles=[];
+    const mafiaCount = parseInt(document.getElementById("mafia").value);
+    const ids = Object.keys(players);
 
+    let roles = [];
     for(let i=0;i<mafiaCount;i++) roles.push("MAFIA");
     for(let i=0;i<ids.length-mafiaCount;i++) roles.push("CITIZEN");
 
     roles.sort(()=>Math.random()-0.5);
 
-    ids.forEach((id,i)=>{
-        playersData[id].role=roles[i];
-        if(id===peer.id){
-            myRole=roles[i];
+    ids.forEach((id,index)=>{
+        players[id].role = roles[index];
+
+        if(id === myId){
+            myRole = roles[index];
             showRole();
-        }else{
-            clients[i-1].send({type:"role",role:roles[i]});
+        } else {
+            connections[id].send({type:"role", role:roles[index]});
         }
     });
 
-    phase="night";
-    broadcast({type:"phase",phase:"night"});
+    broadcast({type:"players", players});
 }
 
 function showRole(){
     document.getElementById("menu").classList.add("hidden");
     document.getElementById("roleScreen").classList.remove("hidden");
-    document.getElementById("role").innerText=myRole;
+    document.getElementById("roleText").innerText = myRole;
 }
 
 function enterGame(){
     document.getElementById("roleScreen").classList.add("hidden");
     document.getElementById("game").classList.remove("hidden");
+
     if(isHost){
         document.getElementById("nextBtn").classList.remove("hidden");
     }
+
     updatePlayers();
 }
 
 function updatePlayers(){
     let html="";
-    for(let id in playersData){
-        let p=playersData[id];
-        html+=`<div class="player ${p.alive?'':'dead'}">${p.name}</div>`;
+    for(let id in players){
+        html += `<div class="player ${players[id].alive?'':'dead'}">${players[id].name}</div>`;
     }
-    document.getElementById("playersList").innerHTML=html;
-    if(isHost) broadcast({type:"players",players:playersData});
+    document.getElementById("playersList").innerHTML = html;
+
+    if(isHost) broadcast({type:"players", players});
     updateVoteOptions();
 }
 
 function updateVoteOptions(){
-    let select=document.getElementById("voteSelect");
-    select.innerHTML="";
-    for(let id in playersData){
-        if(playersData[id].alive && playersData[id].name!==myName){
-            select.innerHTML+=`<option value="${id}">${playersData[id].name}</option>`;
+    let select = document.getElementById("voteSelect");
+    select.innerHTML = "";
+    for(let id in players){
+        if(players[id].alive && id !== myId){
+            select.innerHTML += `<option value="${id}">${players[id].name}</option>`;
         }
     }
 }
 
-function sendVote(){
-    let target=document.getElementById("voteSelect").value;
+function vote(){
+    const target = document.getElementById("voteSelect").value;
+
     if(isHost){
-        votes[peer.id]=target;
+        votes[myId] = target;
         checkVotes();
-    }else{
-        conn.send({type:"vote",id:peer.id,target:target});
+    } else {
+        peer.connections[Object.keys(peer.connections)[0]][0]
+            .send({type:"vote", id:myId, target});
     }
 }
 
 function checkVotes(){
-    if(Object.keys(votes).length===Object.keys(playersData).filter(id=>playersData[id].alive).length){
-        let count={};
+    const aliveCount = Object.values(players).filter(p=>p.alive).length;
+
+    if(Object.keys(votes).length === aliveCount){
+        let count = {};
         for(let v in votes){
-            count[votes[v]]=(count[votes[v]]||0)+1;
+            count[votes[v]] = (count[votes[v]]||0)+1;
         }
-        let max=Object.keys(count).reduce((a,b)=>count[a]>count[b]?a:b);
-        playersData[max].alive=false;
-        broadcast({type:"kill",id:max});
-        votes={};
+        let max = Object.keys(count).reduce((a,b)=>count[a]>count[b]?a:b);
+        players[max].alive = false;
+        broadcast({type:"kill", id:max});
+        votes = {};
         updatePlayers();
         checkWin();
     }
 }
 
 function checkWin(){
-    let mafia=0,citizens=0;
-    for(let id in playersData){
-        if(playersData[id].alive){
-            if(playersData[id].role==="MAFIA") mafia++;
+    let mafia=0, citizens=0;
+    for(let id in players){
+        if(players[id].alive){
+            if(players[id].role==="MAFIA") mafia++;
             else citizens++;
         }
     }
+
     if(mafia===0) alert("CITIZENS WIN!");
     if(mafia>=citizens) alert("MAFIA WIN!");
 }
 
-function nextPhase(){
-    phase=phase==="night"?"day":"night";
-    broadcast({type:"phase",phase:phase});
+function togglePhase(){
+    phase = phase === "night" ? "day" : "night";
+    broadcast({type:"phase", phase});
     updatePhase();
 }
 
 function updatePhase(){
-    document.getElementById("phase").innerText=phase.toUpperCase();
-    if(phase==="day") document.getElementById("voteSection").classList.remove("hidden");
-    else document.getElementById("voteSection").classList.add("hidden");
+    document.getElementById("phase").innerText = phase.toUpperCase();
+    if(phase==="day") document.getElementById("voteArea").classList.remove("hidden");
+    else document.getElementById("voteArea").classList.add("hidden");
 }
 
-function restartGame(){
-    broadcast({type:"restart"});
-    location.reload();
+function broadcast(obj){
+    for(let id in connections){
+        connections[id].send(obj);
+    }
 }
 </script>
 
